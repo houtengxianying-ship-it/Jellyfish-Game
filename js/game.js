@@ -14,17 +14,22 @@ const GAME = {
     var state = {
         score: 0,
         gameOver: false,
-        gameOverReady: false, // can tap to retry
+        gameOverReady: false,
         nextType: randomDropType(),
-        currentBody: null,
         currentType: randomDropType(),
         cursorX: GAME.CANVAS_WIDTH / 2,
         canDrop: true,
-        dangerTimer: 0, // timestamp when danger started
+        dangerTimer: 0,
     };
 
     function randomDropType() {
         return Math.floor(Math.random() * 5) + 1;
+    }
+
+    function clampX(x, radius) {
+        var minX = Physics.WALL_THICKNESS + radius;
+        var maxX = GAME.CANVAS_WIDTH - Physics.WALL_THICKNESS - radius;
+        return Math.max(minX, Math.min(maxX, x));
     }
 
     function init() {
@@ -35,36 +40,25 @@ const GAME = {
             UI.addMergeEffect(x, y, JELLYFISH_TYPES[newType].radius);
         };
 
-        spawnCurrentJellyfish();
         requestAnimationFrame(gameLoop);
     }
 
-    function spawnCurrentJellyfish() {
+    function drop() {
+        if (!state.canDrop || state.gameOver) return;
+
         var type = state.currentType;
         var radius = JELLYFISH_TYPES[type].radius;
         var x = clampX(state.cursorX, radius);
-        state.currentBody = Physics.createJellyfish(x, GAME.DROP_Y, type, true);
-    }
 
-    function clampX(x, radius) {
-        var minX = Physics.WALL_THICKNESS + radius;
-        var maxX = GAME.CANVAS_WIDTH - Physics.WALL_THICKNESS - radius;
-        return Math.max(minX, Math.min(maxX, x));
-    }
+        // Create a dynamic body directly — no static→dynamic transition
+        Physics.createJellyfish(x, GAME.DROP_Y, type, false);
 
-    function drop() {
-        if (!state.canDrop || state.gameOver || !state.currentBody) return;
-
-        Physics.dropJellyfish(state.currentBody);
-        state.currentBody = null;
         state.canDrop = false;
 
-        // Prepare next jellyfish after cooldown
         setTimeout(function () {
             if (state.gameOver) return;
             state.currentType = state.nextType;
             state.nextType = randomDropType();
-            spawnCurrentJellyfish();
             state.canDrop = true;
         }, GAME.DROP_COOLDOWN);
     }
@@ -79,7 +73,6 @@ const GAME = {
         state.currentType = randomDropType();
         state.nextType = randomDropType();
         state.cursorX = GAME.CANVAS_WIDTH / 2;
-        spawnCurrentJellyfish();
     }
 
     function checkGameOver() {
@@ -89,7 +82,6 @@ const GAME = {
 
         for (var i = 0; i < bodies.length; i++) {
             var b = bodies[i];
-            if (b.isStatic) continue; // skip currently held jellyfish
             if (b.position.y - JELLYFISH_TYPES[b.jellyfishType].radius < GAME.DANGER_Y) {
                 anyAboveLine = true;
                 break;
@@ -101,12 +93,6 @@ const GAME = {
                 state.dangerTimer = now;
             } else if (now - state.dangerTimer > 2000) {
                 state.gameOver = true;
-                // Remove current holding jellyfish
-                if (state.currentBody) {
-                    Matter.Composite.remove(Physics.world, state.currentBody);
-                    state.currentBody = null;
-                }
-                // Delay before allowing retry tap
                 setTimeout(function () {
                     state.gameOverReady = true;
                 }, 800);
@@ -122,27 +108,41 @@ const GAME = {
             checkGameOver();
         }
 
-        // Update current jellyfish position
-        if (state.currentBody && state.currentBody.isStatic) {
-            var radius = JELLYFISH_TYPES[state.currentType].radius;
-            var x = clampX(state.cursorX, radius);
-            Matter.Body.setPosition(state.currentBody, { x: x, y: GAME.DROP_Y });
-        }
-
         // Draw
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawBackground(ctx, canvas);
         UI.drawWalls(ctx);
         UI.drawDangerLine(ctx, GAME.DANGER_Y);
 
-        // Draw all jellyfish bodies
+        // Draw all physics jellyfish bodies
         var bodies = Physics.getBodies();
         for (var i = 0; i < bodies.length; i++) {
             var body = bodies[i];
             var type = body.jellyfishType;
             var jelly = JELLYFISH_TYPES[type];
-            var alpha = body.isStatic ? 0.6 : 1.0;
-            drawJellyfish(ctx, body.position.x, body.position.y, jelly.radius, type, alpha);
+            drawJellyfish(ctx, body.position.x, body.position.y, jelly.radius, type, 1.0);
+        }
+
+        // Draw preview jellyfish at cursor (no physics body)
+        if (state.canDrop && !state.gameOver) {
+            var previewType = state.currentType;
+            var previewRadius = JELLYFISH_TYPES[previewType].radius;
+            var previewX = clampX(state.cursorX, previewRadius);
+
+            // Drop guide line
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(previewX, GAME.DROP_Y + previewRadius);
+            ctx.lineTo(previewX, GAME.CANVAS_HEIGHT - Physics.WALL_THICKNESS);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // Preview jellyfish (semi-transparent)
+            drawJellyfish(ctx, previewX, GAME.DROP_Y, previewRadius, previewType, 0.6);
         }
 
         // Draw merge effects
@@ -151,20 +151,6 @@ const GAME = {
         // Draw UI
         UI.drawScore(ctx, state.score);
         UI.drawNextPreview(ctx, state.nextType);
-
-        // Draw drop guide line
-        if (state.currentBody && state.currentBody.isStatic && !state.gameOver) {
-            ctx.save();
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath();
-            ctx.moveTo(state.currentBody.position.x, GAME.DROP_Y + JELLYFISH_TYPES[state.currentType].radius);
-            ctx.lineTo(state.currentBody.position.x, GAME.CANVAS_HEIGHT - Physics.WALL_THICKNESS);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.restore();
-        }
 
         if (state.gameOver) {
             UI.drawGameOver(ctx, canvas, state.score);
@@ -216,6 +202,5 @@ const GAME = {
         drop();
     }, { passive: false });
 
-    // Start the game
     init();
 })();

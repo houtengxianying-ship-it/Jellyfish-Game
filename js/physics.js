@@ -31,7 +31,7 @@ const Physics = {
         Matter.Composite.add(this.world, this.walls);
     },
 
-    createJellyfish: function (x, y, type, isStatic) {
+    createJellyfish: function (x, y, type, isDynamic) {
         const jelly = JELLYFISH_TYPES[type];
         if (!jelly) return null;
 
@@ -39,7 +39,7 @@ const Physics = {
             restitution: 0.3,
             friction: 0.05,
             frictionAir: 0.02,
-            isStatic: isStatic !== false,
+            isStatic: false,
             label: 'jellyfish',
         });
         body.jellyfishType = type;
@@ -47,10 +47,6 @@ const Physics = {
 
         Matter.Composite.add(this.world, body);
         return body;
-    },
-
-    dropJellyfish: function (body) {
-        Matter.Body.setStatic(body, false);
     },
 
     update: function () {
