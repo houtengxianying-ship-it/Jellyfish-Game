@@ -33,6 +33,8 @@ const Physics = {
 
     MERGE_FREEZE_MS: 250, // freeze duration after merge
 
+    BOUNCE_FORCE: 0.04, // impulse strength for non-merge collisions
+
     createJellyfish: function (x, y, type, options) {
         const jelly = JELLYFISH_TYPES[type];
         if (!jelly) return null;
@@ -40,7 +42,7 @@ const Physics = {
 
         // Always create as dynamic first so Matter.js calculates mass properly
         const body = Matter.Bodies.circle(x, y, jelly.radius, {
-            restitution: 0.3,
+            restitution: 0.6,
             friction: 0.05,
             frictionAir: 0.02,
             isStatic: false,
@@ -102,7 +104,19 @@ const Physics = {
                 if (bodyA.label !== 'jellyfish' || bodyB.label !== 'jellyfish') continue;
                 if (bodyA.isRemoved || bodyB.isRemoved) continue;
                 if (bodyA.isStatic || bodyB.isStatic) continue;
-                if (bodyA.jellyfishType !== bodyB.jellyfishType) continue;
+
+                // Different types: bounce apart
+                if (bodyA.jellyfishType !== bodyB.jellyfishType) {
+                    const dx = bodyA.position.x - bodyB.position.x;
+                    const dy = bodyA.position.y - bodyB.position.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    const force = self.BOUNCE_FORCE;
+                    Matter.Body.applyForce(bodyA, bodyA.position, { x: nx * force, y: ny * force });
+                    Matter.Body.applyForce(bodyB, bodyB.position, { x: -nx * force, y: -ny * force });
+                    continue;
+                }
 
                 const type = bodyA.jellyfishType;
 
