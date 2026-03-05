@@ -31,10 +31,14 @@ const Physics = {
         Matter.Composite.add(this.world, this.walls);
     },
 
-    createJellyfish: function (x, y, type, isDynamic) {
+    MERGE_FREEZE_MS: 250, // freeze duration after merge
+
+    createJellyfish: function (x, y, type, options) {
         const jelly = JELLYFISH_TYPES[type];
         if (!jelly) return null;
+        options = options || {};
 
+        // Always create as dynamic first so Matter.js calculates mass properly
         const body = Matter.Bodies.circle(x, y, jelly.radius, {
             restitution: 0.3,
             friction: 0.05,
@@ -44,8 +48,28 @@ const Physics = {
         });
         body.jellyfishType = type;
         body.isRemoved = false;
+        body.isMergeFrozen = !!options.frozen;
+
+        // Freeze: set to static AFTER creation so _original mass is saved
+        if (options.frozen) {
+            Matter.Body.setStatic(body, true);
+        }
 
         Matter.Composite.add(this.world, body);
+
+        // Unfreeze after delay
+        if (options.frozen) {
+            var freezeMs = this.MERGE_FREEZE_MS;
+            setTimeout(function () {
+                if (!body.isRemoved) {
+                    body.isMergeFrozen = false;
+                    Matter.Body.setStatic(body, false);
+                    // Reset velocity so it doesn't fly off
+                    Matter.Body.setVelocity(body, { x: 0, y: 0 });
+                }
+            }, freezeMs);
+        }
+
         return body;
     },
 
@@ -97,7 +121,7 @@ const Physics = {
                 // Create merged jellyfish (type + 1) if not max
                 if (type < 11) {
                     const newType = type + 1;
-                    self.createJellyfish(midX, midY, newType, false);
+                    self.createJellyfish(midX, midY, newType, { frozen: true });
 
                     if (self.onMerge) {
                         self.onMerge(newType, midX, midY);
