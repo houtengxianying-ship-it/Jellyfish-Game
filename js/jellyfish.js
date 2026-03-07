@@ -34,7 +34,7 @@ function drawJellyfish(ctx, x, y, radius, type, alpha) {
 function drawBubble(ctx, x, y, radius, shape, type) {
     var time = Date.now() * 0.001;
     var pulse = getPulse(type);
-    var r = radius * pulse;
+    var r = radius * 0.75 * pulse;
 
     ctx.beginPath();
 
