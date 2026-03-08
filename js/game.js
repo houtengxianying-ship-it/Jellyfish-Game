@@ -186,6 +186,8 @@ const GAME = {
         state.nameInputError = null;
     }
 
+    var DANGER_IGNORE_MS = 1500; // 新しいクラゲは1.5秒間危険判定を無視
+
     function checkGameOver() {
         var bodies = Physics.getBodies();
         var now = Date.now();
@@ -193,6 +195,8 @@ const GAME = {
 
         for (var i = 0; i < bodies.length; i++) {
             var b = bodies[i];
+            // 新しく作成されたクラゲ（落下中）は判定から除外
+            if (now - b.createdAt < DANGER_IGNORE_MS) continue;
             if (b.position.y - JELLYFISH_TYPES[b.jellyfishType].radius < GAME.DANGER_Y) {
                 anyAboveLine = true;
                 break;
