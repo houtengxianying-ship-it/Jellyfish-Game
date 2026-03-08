@@ -44,6 +44,8 @@ const GAME = {
         isRankingLoading: false,
         nameInputValue: '',
         nameInputError: null,
+        // Battery optimization
+        isBackground: false,
     };
 
     // UI bounds for click detection
@@ -112,6 +114,11 @@ const GAME = {
 
     function init() {
         Physics.init();
+
+        // Page Visibility API: pause when tab is hidden (battery optimization)
+        document.addEventListener('visibilitychange', function() {
+            state.isBackground = document.hidden;
+        });
 
         Physics.onMerge = function (newType, x, y) {
             var jelly = JELLYFISH_TYPES[newType];
@@ -269,6 +276,12 @@ const GAME = {
     }
 
     function gameLoop() {
+        // Skip all processing when tab is in background (battery optimization)
+        if (state.isBackground) {
+            requestAnimationFrame(gameLoop);
+            return;
+        }
+
         if (state.phase === 'playing' && !state.gameOver) {
             Physics.update();
             checkGameOver();

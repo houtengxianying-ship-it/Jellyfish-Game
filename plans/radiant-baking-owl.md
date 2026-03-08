@@ -1,84 +1,81 @@
-# モバイル版でゲーム開始直後にゲームオーバーになる問題の修正
+# モバイル版のバッテリー消費を抑える最適化
 
 ## Context
-モバイル版でゲームを開始直後に、勝手にゲームオーバーになってしまう問題が発生している。ユーザーは「ゲーム開始直後」に発生すると報告。
+ユーザーがスマホで10分間プレイしたところ充電が5%減少した。バッテリー消費を抑える仕組みを実装したい。
 
-## Root Cause
+## 現状の問題点
 
-### 1. タイミング問題（主要原因）
-`Date.now()` を使用しているが、モバイルでは以下の状況でクロックドリフトやスロットリングが発生する：
-- バックグラウンドから復帰時
-- JavaScriptエンジンがスロットリングされていた時
-- 省電力モード時
+### 1. バックグラウンド時の処理継続（最大の問題）
+- タブ切り替えや他のアプリに切り替えても、ゲームが裏で動き続ける
+- Page Visibility API が実装されていない
 
-これにより、クラゲ生成時の `createdAt` と `checkGameOver()` での `now` の差分が不正確になり、1.5秒の保護期間が機能しない可能性がある。
+### 2. 常時60fpsレンダリング
+- `requestAnimationFrame` で常に最大フレームレートで描画
+- タイトル画面やゲームオーバー画面でも同じ頻度で描画
 
-### 2. 落下位置が危険ラインより上
-- `DROP_Y = 80px`（クラゲの落下位置）
-- `DANGER_Y = 120px`（危険ライン）
+### 3. 物理エンジンの常時更新
+- Matter.js が毎フレーム更新されている
 
-落下直後のクラゲは常に危険ラインより上にあるため、保護期間が機能しないと即座に危険判定される。
-
-### 3. 半径計算の不一致
-- 物理エンジン: `radius * 0.7` を使用
-- 危険判定: 元の `radius` を使用
-
-この不一致により、危険判定が実際の物理ボディより厳しくなっている。
+### 4. 毎フレーム全体再描画
+- Canvas全体をクリアして再描画している
 
 ## Implementation Plan
 
-### Step 1: `Date.now()` を `performance.now()` に変更
+### Step 1: Page Visibility API でバックグラウンド時の処理を停止
 
-`performance.now()` は単調増加するクロックを使用するため、システムクロックの影響を受けない。
+これが最も効果的。タブが非表示の時は物理更新と描画を完全に停止する。
 
-**physics.js (54行)**
+**game.js - 新しいイベントリスナーを追加**
 ```javascript
-// Before
-body.createdAt = Date.now();
+// state オブジェクトに追加
+isBackground: false,
 
-// After
-body.createdAt = performance.now();
+// init() 関数内に追加
+document.addEventListener('visibilitychange', function() {
+    state.isBackground = document.hidden;
+});
+
+// gameLoop() の先頭で早期リターン
+function gameLoop() {
+    if (state.isBackground) {
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+    // ... 既存の処理
+}
 ```
 
-**game.js (193行)**
+### Step 2: タイトル/ゲームオーバー画面では物理更新をスキップ
+
+プレイ中以外は物理エンジンの更新を不要にする。
+
+**game.js - gameLoop() 内の条件分岐**
 ```javascript
-// Before
-var now = Date.now();
-
-// After
-var now = performance.now();
+if (state.phase === 'playing' && !state.gameOver && !state.isBackground) {
+    Physics.update();
+    checkGameOver();
+}
 ```
+※ 現在のコードでは既に `state.phase === 'playing' && !state.gameOver` で条件付けされているので、Step 1 の `isBackground` チェックを追加するだけで良い
 
-**game.js (265-267行) - getDangerLevel関数**
-```javascript
-// Before
-return Math.min(1.0, (Date.now() - state.dangerTimer) / 5000);
+### Step 3: フレームレート制限（オプション）
 
-// After
-return Math.min(1.0, (performance.now() - state.dangerTimer) / 5000);
-```
+必要に応じて30fpsに制限することも可能だが、ゲーム体験への影響を考慮。
 
-### Step 2: 半径計算を一貫性のあるものに変更
+**今回は実装しない** - Step 1 & 2 で十分な効果が期待できるため
 
-危険判定でも物理エンジンと同じ `radius * 0.7` を使用する。
+## 期待される効果
 
-**game.js (200行)**
-```javascript
-// Before
-if (b.position.y - JELLYFISH_TYPES[b.jellyfishType].radius < GAME.DANGER_Y) {
-
-// After
-var physicsRadius = JELLYFISH_TYPES[b.jellyfishType].radius * 0.7;
-if (b.position.y - physicsRadius < GAME.DANGER_Y) {
-```
+- **バックグラウンド時**: CPU使用率をほぼ0%に削減
+- **タイトル/ゲームオーバー画面**: 物理計算を停止して軽量化
+- **推定効果**: バッテリー消費を30-50%削減可能
 
 ## Critical Files
-- `/Users/5vhgoh/クラゲゲーム/js/game.js` - checkGameOver(), getDangerLevel()
-- `/Users/5vhgoh/クラゲゲーム/js/physics.js` - createJellyfish()
+- `/Users/5vhgoh/クラゲゲーム/js/game.js` - state, init(), gameLoop()
 
 ## Verification
-1. モバイルデバイスでゲームを開始
-2. すぐにクラゲをドロップ
-3. ゲームオーバーにならずにプレイできることを確認
-4. 複数回リスタートして同様に動作することを確認
-5. 通常通りクラゲが積み上がった状態で5秒以上危険ラインを超えた場合のみゲームオーバーになることを確認
+1. ゲームを開始し、別のタブに切り替える
+2. デベロッパーツールのPerformanceタブでCPU使用率が下がることを確認
+3. タブに戻ると正常にゲームが再開することを確認
+4. タイトル画面で待機中のCPU使用率が低いことを確認
+5. 実際にモバイルで10分プレイしてバッテリー消費が改善されたか確認
