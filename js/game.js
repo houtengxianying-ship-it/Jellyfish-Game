@@ -190,14 +190,15 @@ const GAME = {
 
     function checkGameOver() {
         var bodies = Physics.getBodies();
-        var now = Date.now();
+        var now = performance.now();
         var anyAboveLine = false;
 
         for (var i = 0; i < bodies.length; i++) {
             var b = bodies[i];
             // 新しく作成されたクラゲ（落下中）は判定から除外
             if (now - b.createdAt < DANGER_IGNORE_MS) continue;
-            if (b.position.y - JELLYFISH_TYPES[b.jellyfishType].radius < GAME.DANGER_Y) {
+            var physicsRadius = JELLYFISH_TYPES[b.jellyfishType].radius * 0.7;
+            if (b.position.y - physicsRadius < GAME.DANGER_Y) {
                 anyAboveLine = true;
                 break;
             }
@@ -264,7 +265,7 @@ const GAME = {
 
     function getDangerLevel() {
         if (state.dangerTimer === 0) return 0;
-        return Math.min(1.0, (Date.now() - state.dangerTimer) / 5000);
+        return Math.min(1.0, (performance.now() - state.dangerTimer) / 5000);
     }
 
     function gameLoop() {

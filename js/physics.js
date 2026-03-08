@@ -51,7 +51,7 @@ const Physics = {
         body.jellyfishType = type;
         body.isRemoved = false;
         body.isMergeFrozen = !!options.frozen;
-        body.createdAt = Date.now();
+        body.createdAt = performance.now();
 
         // Freeze: set to static AFTER creation so _original mass is saved
         if (options.frozen) {
