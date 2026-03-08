@@ -106,8 +106,8 @@ const Physics = {
                 if (bodyA.isRemoved || bodyB.isRemoved) continue;
                 if (bodyA.isStatic || bodyB.isStatic) continue;
 
-                // Different types: bounce apart
-                if (bodyA.jellyfishType !== bodyB.jellyfishType) {
+                // Different types OR same golden jellyfish (type 11): bounce apart
+                if (bodyA.jellyfishType !== bodyB.jellyfishType || bodyA.jellyfishType === 11) {
                     const dx = bodyA.position.x - bodyB.position.x;
                     const dy = bodyA.position.y - bodyB.position.y;
                     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -142,7 +142,8 @@ const Physics = {
                         self.onMerge(newType, midX, midY);
                     }
                 } else {
-                    // Max type merged — bonus score
+                    // Max type merged — create new one with bonus score
+                    self.createJellyfish(midX, midY, 11, { frozen: true });
                     if (self.onMerge) {
                         self.onMerge(11, midX, midY);
                     }
