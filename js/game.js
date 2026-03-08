@@ -35,6 +35,23 @@ const GAME = {
         dangerTimer: 0,
         comboCount: 0,
         lastMergeTime: 0,
+        // Ranking state
+        showRanking: false,
+        showNameInput: false,
+        pendingScore: 0,
+        rankingData: null,
+        rankingError: null,
+        isRankingLoading: false,
+        nameInputValue: '',
+        nameInputError: null,
+    };
+
+    // UI bounds for click detection
+    var uiBounds = {
+        titleRankingBtn: null,
+        gameOverRankingBtn: { x: 0, y: 0, w: 0, h: 0 },
+        nameInputDialog: null,
+        rankingPanel: null,
     };
 
     function randomDropType() {
@@ -45,6 +62,52 @@ const GAME = {
         var minX = Physics.WALL_THICKNESS + radius;
         var maxX = GAME.CANVAS_WIDTH - Physics.WALL_THICKNESS - radius;
         return Math.max(minX, Math.min(maxX, x));
+    }
+
+    // Ranking helpers
+    function fetchRanking() {
+        state.isRankingLoading = true;
+        state.rankingError = null;
+        state.rankingData = null;
+
+        Ranking.getTopRanking(10, function (success, data) {
+            state.isRankingLoading = false;
+            if (success) {
+                state.rankingData = data;
+            } else {
+                state.rankingError = 'ランキングの取得に失敗しました';
+            }
+        });
+    }
+
+    function submitScoreToRanking() {
+        state.nameInputError = null;
+
+        Ranking.submitScore(state.nameInputValue, state.pendingScore, function (success, error) {
+            if (success) {
+                state.showNameInput = false;
+                state.showRanking = true;
+                fetchRanking();
+            } else {
+                state.nameInputError = error;
+            }
+        });
+    }
+
+    function openNameInput() {
+        state.showNameInput = true;
+        state.showRanking = false;
+        state.pendingScore = state.score;
+        state.nameInputValue = Ranking.getLastPlayerName();
+        state.nameInputError = null;
+    }
+
+    function closeAllOverlays() {
+        state.showRanking = false;
+        state.showNameInput = false;
+        state.rankingData = null;
+        state.rankingError = null;
+        state.isRankingLoading = false;
     }
 
     function init() {
@@ -112,6 +175,15 @@ const GAME = {
         state.currentType = randomDropType();
         state.nextType = randomDropType();
         state.cursorX = GAME.CANVAS_WIDTH / 2;
+        // Reset ranking state
+        state.showRanking = false;
+        state.showNameInput = false;
+        state.pendingScore = 0;
+        state.rankingData = null;
+        state.rankingError = null;
+        state.isRankingLoading = false;
+        state.nameInputValue = '';
+        state.nameInputError = null;
     }
 
     function checkGameOver() {
@@ -199,6 +271,12 @@ const GAME = {
         if (state.phase === 'title') {
             // Title screen
             UI.drawTitleScreen(ctx, canvas, getHighScore());
+            uiBounds.titleRankingBtn = UI.drawRankingButton(ctx, canvas, getHighScore());
+
+            // Show ranking overlay if active
+            if (state.showRanking) {
+                UI.drawRankingPanel(ctx, canvas, state.rankingData, state.isRankingLoading, state.rankingError, 0);
+            }
         } else {
             // Game or gameover
             UI.drawWalls(ctx);
@@ -259,7 +337,17 @@ const GAME = {
 
             if (state.gameOver) {
                 var goElapsed = Date.now() - state.gameOverStartTime;
-                UI.drawGameOver(ctx, canvas, state.score, getHighScore(), state.isNewHighScore, goElapsed);
+                UI.drawGameOverWithRanking(ctx, canvas, state.score, getHighScore(), state.isNewHighScore, goElapsed, uiBounds.gameOverRankingBtn);
+
+                // Name input dialog
+                if (state.showNameInput) {
+                    uiBounds.nameInputDialog = UI.drawNameInputDialog(ctx, canvas, state.nameInputValue, state.pendingScore, state.nameInputError);
+                }
+
+                // Ranking panel
+                if (state.showRanking) {
+                    uiBounds.rankingPanel = UI.drawRankingPanel(ctx, canvas, state.rankingData, state.isRankingLoading, state.rankingError, state.pendingScore);
+                }
             }
         }
 
@@ -281,6 +369,107 @@ const GAME = {
         return (clientX - rect.left) * scaleX;
     }
 
+    function getCanvasY(event) {
+        var rect = canvas.getBoundingClientRect();
+        var scaleY = canvas.height / rect.height;
+        var clientY;
+        if (event.touches && event.touches.length > 0) {
+            clientY = event.touches[0].clientY;
+        } else if (event.changedTouches && event.changedTouches.length > 0) {
+            clientY = event.changedTouches[0].clientY;
+        } else {
+            clientY = event.clientY;
+        }
+        return (clientY - rect.top) * scaleY;
+    }
+
+    function isInside(x, y, bounds) {
+        if (!bounds) return false;
+        return x >= bounds.x && x <= bounds.x + bounds.w &&
+               y >= bounds.y && y <= bounds.y + bounds.h;
+    }
+
+    function handleClick(event) {
+        var x = getCanvasX(event);
+        var y = getCanvasY(event);
+
+        // Title screen
+        if (state.phase === 'title') {
+            if (state.showRanking) {
+                // Close ranking overlay
+                closeAllOverlays();
+                return;
+            }
+            // Check ranking button
+            if (uiBounds.titleRankingBtn && isInside(x, y, uiBounds.titleRankingBtn)) {
+                state.showRanking = true;
+                fetchRanking();
+                return;
+            }
+            // Start game
+            restart();
+            return;
+        }
+
+        // Game over screen
+        if (state.gameOver) {
+            // Name input dialog active
+            if (state.showNameInput) {
+                var dlg = uiBounds.nameInputDialog;
+                if (dlg && dlg.submitBtn && isInside(x, y, dlg.submitBtn)) {
+                    submitScoreToRanking();
+                    return;
+                }
+                // Click outside dialog closes it
+                if (dlg && dlg.dialog && !isInside(x, y, dlg.dialog)) {
+                    state.showNameInput = false;
+                    state.nameInputError = null;
+                }
+                return;
+            }
+
+            // Ranking panel active
+            if (state.showRanking) {
+                closeAllOverlays();
+                return;
+            }
+
+            // Check ranking button
+            if (state.gameOverReady && state.score > 0 && isInside(x, y, uiBounds.gameOverRankingBtn)) {
+                openNameInput();
+                return;
+            }
+
+            // Retry
+            if (state.gameOverReady) {
+                restart();
+            }
+            return;
+        }
+
+        // Playing: drop jellyfish
+        drop();
+    }
+
+    function handleKeydown(event) {
+        if (!state.showNameInput) return;
+
+        var key = event.key;
+        if (key === 'Backspace') {
+            state.nameInputValue = state.nameInputValue.slice(0, -1);
+            event.preventDefault();
+        } else if (key === 'Enter') {
+            submitScoreToRanking();
+            event.preventDefault();
+        } else if (key.length === 1 && state.nameInputValue.length < Ranking.MAX_NAME_LENGTH) {
+            // Allow alphanumeric, Japanese, and common symbols
+            if (/^[a-zA-Z0-9ぁ-んァ-ン一-龥ー\s\-_]$/.test(key)) {
+                state.nameInputValue += key;
+            }
+            event.preventDefault();
+        }
+    }
+
     canvas.addEventListener('mousemove', function (e) {
         if (state.phase !== 'playing' || state.gameOver) return;
         state.cursorX = getCanvasX(e);
@@ -293,29 +482,15 @@ const GAME = {
     }, { passive: false });
 
     canvas.addEventListener('click', function (e) {
-        if (state.phase === 'title') {
-            restart();
-            return;
-        }
-        if (state.gameOver) {
-            if (state.gameOverReady) restart();
-            return;
-        }
-        drop();
+        handleClick(e);
     });
 
     canvas.addEventListener('touchend', function (e) {
         e.preventDefault();
-        if (state.phase === 'title') {
-            restart();
-            return;
-        }
-        if (state.gameOver) {
-            if (state.gameOverReady) restart();
-            return;
-        }
-        drop();
+        handleClick(e);
     }, { passive: false });
+
+    document.addEventListener('keydown', handleKeydown);
 
     init();
 })();

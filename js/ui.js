@@ -424,6 +424,269 @@ const UI = {
         this.comboDisplay.startTime = Date.now();
     },
 
+    // --- Ranking Button (Title Screen) ---
+    drawRankingButton: function (ctx, canvas, highScore) {
+        if (highScore <= 0) return null;
+
+        var btnX = canvas.width / 2 - 50;
+        var btnY = canvas.height / 2 + 180;
+        var btnW = 100;
+        var btnH = 32;
+
+        this.drawFrostedPanel(ctx, btnX, btnY, btnW, btnH, 8);
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '13px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = 'rgba(200, 220, 255, 0.9)';
+        ctx.fillText('RANKING', btnX + btnW / 2, btnY + btnH / 2);
+        ctx.restore();
+
+        return { x: btnX, y: btnY, w: btnW, h: btnH };
+    },
+
+    // --- Ranking Panel ---
+    drawRankingPanel: function (ctx, canvas, rankings, isLoading, errorMessage, selfScore) {
+        ctx.save();
+
+        // Overlay
+        ctx.fillStyle = 'rgba(0, 10, 30, 0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Panel
+        var panelW = 320;
+        var panelH = 420;
+        var panelX = (canvas.width - panelW) / 2;
+        var panelY = (canvas.height - panelH) / 2;
+        this.drawFrostedPanel(ctx, panelX, panelY, panelW, panelH, 12);
+
+        // Title
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(80, 180, 255, 0.5)';
+        ctx.shadowBlur = 10;
+        ctx.font = 'bold 22px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = '#80D0FF';
+        ctx.fillText('RANKING', canvas.width / 2, panelY + 35);
+
+        // Close hint
+        ctx.shadowBlur = 0;
+        ctx.font = '11px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = 'rgba(160, 200, 255, 0.5)';
+        ctx.fillText('TAP TO CLOSE', canvas.width / 2, panelY + 55);
+
+        // Content
+        var contentY = panelY + 75;
+
+        if (isLoading) {
+            ctx.font = '14px "Helvetica Neue", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(200, 220, 255, 0.7)';
+            ctx.fillText('Loading...', canvas.width / 2, contentY + 60);
+        } else if (errorMessage) {
+            ctx.font = '14px "Helvetica Neue", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255, 100, 100, 0.8)';
+            ctx.fillText(errorMessage, canvas.width / 2, contentY + 60);
+        } else if (rankings && rankings.length > 0) {
+            // Header
+            ctx.textAlign = 'left';
+            ctx.font = '11px "Helvetica Neue", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(120, 180, 220, 0.6)';
+            ctx.fillText('RANK', panelX + 20, contentY + 15);
+            ctx.fillText('NAME', panelX + 60, contentY + 15);
+            ctx.textAlign = 'right';
+            ctx.fillText('SCORE', panelX + panelW - 20, contentY + 15);
+
+            // Divider
+            ctx.strokeStyle = 'rgba(100, 180, 255, 0.15)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(panelX + 15, contentY + 25);
+            ctx.lineTo(panelX + panelW - 15, contentY + 25);
+            ctx.stroke();
+
+            // Rankings
+            var rowH = 28;
+            for (var i = 0; i < rankings.length; i++) {
+                var r = rankings[i];
+                var rowY = contentY + 30 + i * rowH;
+                var isSelf = selfScore && r.score === selfScore && r.playerName === Ranking.getLastPlayerName();
+
+                // Highlight self row
+                if (isSelf) {
+                    ctx.fillStyle = 'rgba(80, 180, 255, 0.15)';
+                    ctx.fillRect(panelX + 10, rowY - 2, panelW - 20, rowH - 4);
+                }
+
+                // Rank number
+                ctx.textAlign = 'left';
+                ctx.font = (i < 3 ? 'bold ' : '') + '13px "Helvetica Neue", Arial, sans-serif';
+                if (i === 0) ctx.fillStyle = '#FFD700';
+                else if (i === 1) ctx.fillStyle = '#C0C0C0';
+                else if (i === 2) ctx.fillStyle = '#CD7F32';
+                else ctx.fillStyle = 'rgba(200, 220, 255, 0.8)';
+                ctx.fillText((i + 1) + '.', panelX + 22, rowY + 12);
+
+                // Name
+                ctx.fillStyle = isSelf ? '#80D0FF' : 'rgba(255, 255, 255, 0.9)';
+                ctx.fillText(r.playerName, panelX + 55, rowY + 12);
+
+                // Score
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 13px "Helvetica Neue", Arial, sans-serif';
+                ctx.fillStyle = isSelf ? '#80D0FF' : 'rgba(255, 255, 255, 0.9)';
+                ctx.fillText(r.score, panelX + panelW - 20, rowY + 12);
+            }
+        } else {
+            ctx.textAlign = 'center';
+            ctx.font = '14px "Helvetica Neue", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(200, 220, 255, 0.6)';
+            ctx.fillText('No records yet', canvas.width / 2, contentY + 60);
+            ctx.fillText('Be the first to register!', canvas.width / 2, contentY + 82);
+        }
+
+        ctx.restore();
+
+        return { x: panelX, y: panelY, w: panelW, h: panelH };
+    },
+
+    // --- Name Input Dialog ---
+    drawNameInputDialog: function (ctx, canvas, inputValue, pendingScore, errorMessage) {
+        ctx.save();
+
+        // Overlay
+        ctx.fillStyle = 'rgba(0, 10, 30, 0.8)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Dialog
+        var dlgW = 280;
+        var dlgH = 200;
+        var dlgX = (canvas.width - dlgW) / 2;
+        var dlgY = (canvas.height - dlgH) / 2;
+        this.drawFrostedPanel(ctx, dlgX, dlgY, dlgW, dlgH, 12);
+
+        // Title
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(80, 180, 255, 0.5)';
+        ctx.shadowBlur = 8;
+        ctx.font = 'bold 18px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = '#80D0FF';
+        ctx.fillText('REGISTER SCORE', canvas.width / 2, dlgY + 30);
+
+        // Score
+        ctx.shadowBlur = 0;
+        ctx.font = '14px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = 'rgba(200, 220, 255, 0.7)';
+        ctx.fillText('Your Score', canvas.width / 2, dlgY + 55);
+        ctx.font = 'bold 26px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(pendingScore, canvas.width / 2, dlgY + 82);
+
+        // Input label
+        ctx.font = '12px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = 'rgba(200, 220, 255, 0.7)';
+        ctx.fillText('Enter your name', canvas.width / 2, dlgY + 108);
+
+        // Input field visual
+        var inputX = dlgX + 30;
+        var inputY = dlgY + 115;
+        var inputW = dlgW - 60;
+        var inputH = 32;
+
+        ctx.fillStyle = 'rgba(0, 20, 50, 0.6)';
+        ctx.strokeStyle = 'rgba(100, 180, 255, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(inputX, inputY, inputW, inputH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        // Input text
+        ctx.textAlign = 'left';
+        ctx.font = '14px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = '#FFFFFF';
+        var displayText = inputValue || '';
+        // Truncate display if too long
+        while (ctx.measureText(displayText).width > inputW - 20 && displayText.length > 0) {
+            displayText = displayText.substring(0, displayText.length - 1);
+        }
+        ctx.fillText(displayText, inputX + 10, inputY + 21);
+
+        // Cursor blink
+        var cursorVisible = Math.floor(Date.now() / 500) % 2 === 0;
+        if (cursorVisible) {
+            var cursorX = inputX + 10 + ctx.measureText(displayText).width + 1;
+            ctx.fillStyle = '#80D0FF';
+            ctx.fillRect(cursorX, inputY + 8, 1.5, 16);
+        }
+
+        // Error message
+        if (errorMessage) {
+            ctx.textAlign = 'center';
+            ctx.font = '11px "Helvetica Neue", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
+            ctx.fillText(errorMessage, canvas.width / 2, dlgY + 162);
+        }
+
+        // Submit button
+        var btnY = dlgY + (errorMessage ? 170 : 155);
+        var btnW = 80;
+        var btnH = 28;
+        var btnX = (canvas.width - btnW) / 2;
+
+        ctx.fillStyle = 'rgba(80, 180, 255, 0.3)';
+        ctx.strokeStyle = 'rgba(100, 200, 255, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(btnX, btnY, btnW, btnH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 12px "Helvetica Neue", Arial, sans-serif';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText('SUBMIT', btnX + btnW / 2, btnY + btnH / 2);
+
+        ctx.restore();
+
+        return {
+            dialog: { x: dlgX, y: dlgY, w: dlgW, h: dlgH },
+            input: { x: inputX, y: inputY, w: inputW, h: inputH },
+            submitBtn: { x: btnX, y: btnY, w: btnW, h: btnH }
+        };
+    },
+
+    // --- Game Over with Ranking Button ---
+    drawGameOverWithRanking: function (ctx, canvas, score, highScore, isNewHighScore, elapsed, rankingBtnBounds) {
+        // Draw base game over
+        this.drawGameOver(ctx, canvas, score, highScore, isNewHighScore, elapsed);
+
+        // Draw RANKING button (after retry hint)
+        if (elapsed > 1800 && score > 0) {
+            var btnX = canvas.width / 2 - 55;
+            var btnY = canvas.height / 2 + 145;
+            var btnW = 110;
+            var btnH = 32;
+
+            ctx.save();
+            this.drawFrostedPanel(ctx, btnX, btnY, btnW, btnH, 8);
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 13px "Helvetica Neue", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(200, 220, 255, 0.9)';
+            ctx.fillText('RANKING', btnX + btnW / 2, btnY + btnH / 2);
+            ctx.restore();
+
+            if (rankingBtnBounds) {
+                rankingBtnBounds.x = btnX;
+                rankingBtnBounds.y = btnY;
+                rankingBtnBounds.w = btnW;
+                rankingBtnBounds.h = btnH;
+            }
+        }
+    },
+
     drawCombo: function (ctx, canvasWidth) {
         if (this.comboDisplay.count < 2) return;
         var elapsed = Date.now() - this.comboDisplay.startTime;
