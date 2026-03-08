@@ -202,7 +202,7 @@ const GAME = {
         if (anyAboveLine) {
             if (state.dangerTimer === 0) {
                 state.dangerTimer = now;
-            } else if (now - state.dangerTimer > 2000) {
+            } else if (now - state.dangerTimer > 5000) {
                 state.gameOver = true;
                 state.phase = 'gameover';
                 state.gameOverStartTime = now;
@@ -253,7 +253,7 @@ const GAME = {
 
     function getDangerLevel() {
         if (state.dangerTimer === 0) return 0;
-        return Math.min(1.0, (Date.now() - state.dangerTimer) / 2000);
+        return Math.min(1.0, (Date.now() - state.dangerTimer) / 5000);
     }
 
     function gameLoop() {

@@ -41,7 +41,7 @@ const Physics = {
         options = options || {};
 
         // Always create as dynamic first so Matter.js calculates mass properly
-        const body = Matter.Bodies.circle(x, y, jelly.radius, {
+        const body = Matter.Bodies.circle(x, y, jelly.radius * 0.7, {
             restitution: 0.6,
             friction: 0.05,
             frictionAir: 0.02,

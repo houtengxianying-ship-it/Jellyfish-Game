@@ -77,19 +77,6 @@ function drawJellyfishBody(ctx, x, y, radius, type) {
         case 'giant': bellW *= 1.15; bellH *= 1.05; break;
     }
 
-    // --- Soft aura glow (replaces old invisible bubble) ---
-    ctx.save();
-    var auraR = Math.max(bellW, bellH) * 1.5;
-    var aura = ctx.createRadialGradient(x, bellY, auraR * 0.3, x, bellY, auraR);
-    aura.addColorStop(0, jelly.bodyColor + '20');
-    aura.addColorStop(0.6, jelly.bodyColor + '08');
-    aura.addColorStop(1, jelly.bodyColor + '00');
-    ctx.fillStyle = aura;
-    ctx.beginPath();
-    ctx.arc(x, bellY, auraR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
     // --- Tentacles (drawn behind bell) ---
     drawTentacles(ctx, x, bellY, bellW, bellH, radius, type, jelly, time);
 
