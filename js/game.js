@@ -199,27 +199,34 @@ const GAME = {
             }
         }
 
-        if (anyAboveLine) {
-            if (state.dangerTimer === 0) {
-                state.dangerTimer = now;
-            } else if (now - state.dangerTimer > 5000) {
-                state.gameOver = true;
-                state.phase = 'gameover';
-                state.gameOverStartTime = now;
+        // タイマーが動いている場合は常にチェック
+        if (state.dangerTimer > 0) {
+            if (now - state.dangerTimer > 5000) {
+                // 5秒経過時点で再度チェック
+                if (anyAboveLine) {
+                    // まだ超えていればアウト
+                    state.gameOver = true;
+                    state.phase = 'gameover';
+                    state.gameOverStartTime = now;
 
-                // High score check
-                var hs = getHighScore();
-                if (state.score > hs) {
-                    setHighScore(state.score);
-                    state.isNewHighScore = true;
+                    // High score check
+                    var hs = getHighScore();
+                    if (state.score > hs) {
+                        setHighScore(state.score);
+                        state.isNewHighScore = true;
+                    }
+
+                    setTimeout(function () {
+                        state.gameOverReady = true;
+                    }, 1600);
+                } else {
+                    // 5秒経過時点で下がっていればセーフ
+                    state.dangerTimer = 0;
                 }
-
-                setTimeout(function () {
-                    state.gameOverReady = true;
-                }, 1600);
             }
-        } else {
-            state.dangerTimer = 0;
+        } else if (anyAboveLine) {
+            // ライン超過を検知したらタイマー開始
+            state.dangerTimer = now;
         }
     }
 
