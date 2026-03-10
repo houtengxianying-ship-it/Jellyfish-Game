@@ -505,7 +505,7 @@ const UI = {
             ctx.stroke();
 
             // Rankings
-            var rowH = 28;
+            var rowH = 32;
             for (var i = 0; i < rankings.length; i++) {
                 var r = rankings[i];
                 var rowY = contentY + 30 + i * rowH;
@@ -535,6 +535,15 @@ const UI = {
                 ctx.font = 'bold 13px "Helvetica Neue", Arial, sans-serif';
                 ctx.fillStyle = isSelf ? '#80D0FF' : 'rgba(255, 255, 255, 0.9)';
                 ctx.fillText(r.score, panelX + panelW - 20, rowY + 12);
+
+                // Date
+                if (r.date) {
+                    var d = new Date(r.date);
+                    var dateStr = (d.getMonth() + 1) + '/' + d.getDate();
+                    ctx.font = '10px "Helvetica Neue", Arial, sans-serif';
+                    ctx.fillStyle = 'rgba(160, 200, 255, 0.5)';
+                    ctx.fillText(dateStr, panelX + panelW - 20, rowY + 24);
+                }
             }
         } else {
             ctx.textAlign = 'center';
