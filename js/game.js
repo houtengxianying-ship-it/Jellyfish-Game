@@ -89,6 +89,7 @@ const GAME = {
             if (success) {
                 state.showNameInput = false;
                 state.showRanking = true;
+                hiddenInput.blur();
                 fetchRanking();
             } else {
                 state.nameInputError = error;
@@ -96,12 +97,17 @@ const GAME = {
         });
     }
 
+    var hiddenInput = document.getElementById('nameInput');
+
     function openNameInput() {
         state.showNameInput = true;
         state.showRanking = false;
         state.pendingScore = state.score;
         state.nameInputValue = Ranking.getLastPlayerName();
         state.nameInputError = null;
+        // Sync and focus hidden input for mobile keyboard
+        hiddenInput.value = state.nameInputValue;
+        hiddenInput.focus();
     }
 
     function closeAllOverlays() {
@@ -110,6 +116,7 @@ const GAME = {
         state.rankingData = null;
         state.rankingError = null;
         state.isRankingLoading = false;
+        hiddenInput.blur();
     }
 
     function init() {
@@ -445,10 +452,16 @@ const GAME = {
                     submitScoreToRanking();
                     return;
                 }
+                // Tap input field area to focus
+                if (dlg && dlg.input && isInside(x, y, dlg.input)) {
+                    hiddenInput.focus();
+                    return;
+                }
                 // Click outside dialog closes it
                 if (dlg && dlg.dialog && !isInside(x, y, dlg.dialog)) {
                     state.showNameInput = false;
                     state.nameInputError = null;
+                    hiddenInput.blur();
                 }
                 return;
             }
@@ -476,24 +489,19 @@ const GAME = {
         drop();
     }
 
-    function handleKeydown(event) {
+    // Sync hidden input value to game state
+    hiddenInput.addEventListener('input', function () {
         if (!state.showNameInput) return;
+        state.nameInputValue = hiddenInput.value.substring(0, Ranking.MAX_NAME_LENGTH);
+    });
 
-        var key = event.key;
-        if (key === 'Backspace') {
-            state.nameInputValue = state.nameInputValue.slice(0, -1);
-            event.preventDefault();
-        } else if (key === 'Enter') {
+    hiddenInput.addEventListener('keydown', function (event) {
+        if (!state.showNameInput) return;
+        if (event.key === 'Enter') {
             submitScoreToRanking();
             event.preventDefault();
-        } else if (key.length === 1 && state.nameInputValue.length < Ranking.MAX_NAME_LENGTH) {
-            // Allow alphanumeric, Japanese, and common symbols
-            if (/^[a-zA-Z0-9ぁ-んァ-ン一-龥ー\s\-_]$/.test(key)) {
-                state.nameInputValue += key;
-            }
-            event.preventDefault();
         }
-    }
+    });
 
     canvas.addEventListener('mousemove', function (e) {
         if (state.phase !== 'playing' || state.gameOver) return;
@@ -514,8 +522,6 @@ const GAME = {
         e.preventDefault();
         handleClick(e);
     }, { passive: false });
-
-    document.addEventListener('keydown', handleKeydown);
 
     init();
 })();
